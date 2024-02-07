@@ -1,0 +1,15 @@
+version: "3.5"
+
+services:
+  devcontainer:
+    image: "esp-scheduler/devcontainer:${BUILD_VERSION}"
+    build:
+      context: devcontainer
+      dockerfile: Dockerfile
+    network_mode: host
+    volumes:
+      - ../..:/workspaces:cached
+      - ~/.ssh:/workspaces/esp-scheduler/keys:ro
+    env_file:
+      - ./.env
+    command: sleep infinity
