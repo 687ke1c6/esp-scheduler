@@ -1,6 +1,5 @@
-use chrono::{DateTime, FixedOffset, Utc};
+use chrono::{DateTime, FixedOffset};
 use serde::{ser::SerializeStruct, Deserialize, Serialize, Serializer};
-use chrono::serde::ts_seconds;
 use serde_json::from_reader;
 
 mod date_serializer {
@@ -27,8 +26,7 @@ impl Serialize for Event {
     }
 }
 
-#[derive(Debug)]
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Event {
     #[serde(with = "date_serializer")]
     pub start: DateTime<FixedOffset>,
@@ -37,16 +35,9 @@ pub struct Event {
     pub note: String
 }
 
-#[derive(Debug)]
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct AreaInformation {
     pub events: Vec<Event>
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct MyStruct {
-    #[serde(with = "ts_seconds")]
-    pub date: DateTime<Utc>,
 }
 
 impl AreaInformation {

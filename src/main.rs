@@ -11,14 +11,14 @@ mod models;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
-    let mut file = File::open("config.yaml").unwrap();
+    let mut file = File::open("esp-scheduler.yaml").unwrap();
     let mut file_contents = String::new();
     
     File::read_to_string(&mut file, &mut file_contents).unwrap();
     
-    let configuration = Config::from_str(&file_contents).expect("Could not deserialize config.yaml");
+    let configuration = Config::from_str(&file_contents).expect("Could not deserialize configuration");
 
-    let mut interval = tokio::time::interval(Duration::from_secs(u64::from(configuration.interval_mins)));
+    let mut interval = tokio::time::interval(Duration::from_secs(u64::from(configuration.interval_mins) * 60));
     let http_client = reqwest::Client::new();
     let mut count = 0;
     let mut cached_body = String::from("{\"events\" : []}");
@@ -45,7 +45,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let area_information = AreaInformation::new(&cached_body)?;
-        // println!("{:?}", area_information);
 
         let mut events = area_information.events;
         events.sort_by_key(|a| a.start);

@@ -1,5 +1,5 @@
 /target
 /keys
 *.json
-config.yaml
+esp-scheduler.yaml
 /docker
