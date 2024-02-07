@@ -57,7 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 time_diff.num_minutes()
             );
             if time_diff.num_minutes() < configuration.execute_within_mins.into() {
-                println!("{}", "execute_within_mins")
+                println!("{}", "execute_within_mins");
                 for command in &configuration.command {
                     let child = Command::new("sh")
                         .args(["-c", command])
