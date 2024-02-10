@@ -10,28 +10,38 @@ mod models;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    
-    let mut file = File::open("esp-scheduler.yaml").unwrap();
-    let mut file_contents = String::new();
-    
-    File::read_to_string(&mut file, &mut file_contents).unwrap();
-    
-    let configuration = Config::from_str(&file_contents).expect("Could not deserialize configuration");
 
-    let mut interval = tokio::time::interval(Duration::from_secs(u64::from(configuration.interval_mins) * 60));
+    let mut file = File::open("esp-scheduler.yaml").expect("Could not open config file");
+    let mut file_contents = String::new();
+
+    File::read_to_string(&mut file, &mut file_contents).unwrap();
+
+    let configuration =
+        Config::from_str(&file_contents).expect("Could not deserialize configuration");
+
+    let interval_secs = u64::from(configuration.interval_mins.as_ref().unwrap_or(&1) * 60);
+
+    let mut interval = tokio::time::interval(Duration::from_secs(interval_secs));
     let http_client = reqwest::Client::new();
     let mut count = 0;
     let mut cached_body = String::from("{\"events\" : []}");
+    let fetch_mins = configuration.fetch_occurrence.unwrap_or_else(|| 60);
 
     loop {
         interval.tick().await;
-        if count % configuration.fetch_occurrence == 0 {
-            println!("{}, {}", "fetching", &configuration.url);
-            let response = http_client
-                .get(&configuration.url)
-                .header("token", &configuration.token)
-                .send()
-                .await;
+        if count % fetch_mins == 0 {
+            println!("{}, {}", "fetching", &configuration.fetch.url);
+            let mut request = http_client.get(&configuration.fetch.url);
+
+            // apply headers
+            if let Some(headers) = configuration.fetch.headers.as_ref() {
+                for (key, value) in headers {
+                    request = request.header(key, value);
+                }
+            }
+
+            // send reqwest
+            let response = request.send().await;
             if let Err(err) = response {
                 println!("{}\n{}", "Unable to reach host", err);
                 continue;
@@ -51,18 +61,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         if let Some(first) = events.first() {
             let time_diff = first.start.to_utc() - Utc::now();
-            println!(
-                "{} in {} mins",
-                first.note,
-                time_diff.num_minutes()
-            );
-            if time_diff.num_minutes() < configuration.execute_within_mins.into() {
-                println!("{}", "execute_within_mins");
-                for command in &configuration.command {
+            println!("{} in {} mins", first.note, time_diff.num_minutes());
+            if time_diff.num_minutes() < configuration.threshold.into() {
+                println!("{}: {} mins", "threshold reached", configuration.threshold);
+                let commands = configuration
+                    .commands
+                    .as_ref() // convert from &Option<T> to Option<&T>
+                    .map(|v| &v[..]) // map to slice instead of a container reference
+                    .unwrap_or_else(|| &[]); // otherwise return an empty slice.
+                for command in commands {
                     let child = Command::new("sh")
                         .args(["-c", command])
                         .current_dir(".")
-                        .spawn();
+                        .spawn()?
+                        .wait()
+                        .await;
                     if let Err(err) = child {
                         println!("{}\n{}", "could not execute command", err);
                     }
