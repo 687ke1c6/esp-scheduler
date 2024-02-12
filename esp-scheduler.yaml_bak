@@ -1,0 +1,10 @@
+interval_mins: 1
+fetch_occurrence: 60
+threshold: 10
+fetch:
+  url: "https://developer.sepush.co.za/business/2.0/area?id=capetown-5-claremont"
+  headers:
+    token: "9A528D15-0F8F4724-AA374D22-1DDDDEB1"
+commands:
+  - "ssh g@pi4lite3 'cat /etc/hostname'"
+  - "date"

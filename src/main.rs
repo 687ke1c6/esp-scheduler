@@ -1,7 +1,14 @@
-use std::{fs::File, io::Read, time::Duration};
+use std::{
+    fs::File,
+    io::{Read, Write},
+    path::Path,
+    process::exit,
+    time::Duration,
+};
 
 use chrono::Utc;
-use models::area_information::AreaInformation;
+use clap::Parser;
+use models::{area_information::AreaInformation, args::Args};
 use tokio::process::Command;
 
 use crate::models::{area_information::Event, config::Config};
@@ -14,6 +21,20 @@ fn log(log_line: String) {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = Args::parse();
+
+    if args.init {
+        if Path::new("esp-scheduler.yaml").exists() {
+            println!("config file already exists: esp-scheduler.yaml");
+            exit(1)
+        } else {
+            let default_config_str = serde_yaml::to_string(&Config::default())?;
+            let mut config_file = File::create("esp-scheduler.yaml")?;
+            config_file.write_all(default_config_str.as_bytes())?;
+        }
+        exit(0);
+    }
+
     log(format!("starting esp-scheduler"));
     let mut file = File::open("esp-scheduler.yaml").expect("Could not open config file");
     let mut file_contents = String::new();
@@ -31,6 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let fetch_mins = configuration.fetch_occurrence.unwrap_or_else(|| 60);
 
     let mut count = 0;
+
     loop {
         interval.tick().await;
         if count % fetch_mins == 0 {
