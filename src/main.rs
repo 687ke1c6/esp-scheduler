@@ -1,45 +1,51 @@
-use std::{
-    fs::File,
-    io::{Read, Write},
-    path::Path,
-    process::exit,
-    time::Duration,
-};
+use std::{path::Path, process::exit, time::Duration};
 
 use chrono::Utc;
 use clap::Parser;
 use models::{area_information::AreaInformation, args::Args};
-use tokio::process::Command;
+use tokio::{
+    fs::File,
+    io::{AsyncReadExt, AsyncWriteExt},
+    process::Command,
+};
 
 use crate::models::{area_information::Event, config::Config};
 
 mod models;
 
-fn log(log_line: String) {
-    println!("{} | {}", Utc::now().format("%d-%m-%Y %H:%M:%S"), log_line);
+mod logging {
+    use chrono::Utc;
+    pub fn log(log_line: String) {
+        println!("{} | {}", Utc::now().format("%d-%m-%Y %H:%M:%S"), log_line);
+    }
 }
+
+static CONFIG_FILE_PATH: &'static str = "esp-scheduler.yaml";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
+    let config_file_path = args.config_file.as_ref().map_or(CONFIG_FILE_PATH, |v| v);
 
     if args.init {
-        if Path::new("esp-scheduler.yaml").exists() {
-            println!("config file already exists: esp-scheduler.yaml");
+        if Path::new(config_file_path).exists() {
+            logging::log(format!("config file already exists: {}", config_file_path));
             exit(1)
         } else {
             let default_config_str = serde_yaml::to_string(&Config::default())?;
-            let mut config_file = File::create("esp-scheduler.yaml")?;
-            config_file.write_all(default_config_str.as_bytes())?;
+            let mut config_file = File::create(config_file_path).await?;
+            config_file.write_all(default_config_str.as_bytes()).await?;
         }
-        exit(0);
+        exit(0)
     }
 
-    log(format!("starting esp-scheduler"));
-    let mut file = File::open("esp-scheduler.yaml").expect("Could not open config file");
+    logging::log(format!("starting esp-scheduler"));
+    let mut file = File::open(config_file_path)
+        .await
+        .expect("Could not open config file");
     let mut file_contents = String::new();
 
-    File::read_to_string(&mut file, &mut file_contents).unwrap();
+    file.read_to_string(&mut file_contents).await?;
 
     let configuration =
         Config::from_str(&file_contents).expect("Could not deserialize configuration");
@@ -56,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         interval.tick().await;
         if count % fetch_mins == 0 {
-            log(format!("{}, {}", "fetching", &configuration.fetch.url));
+            logging::log(format!("{}, {}", "fetching", &configuration.fetch.url));
             let mut request = http_client.get(&configuration.fetch.url);
 
             // apply headers
@@ -69,12 +75,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // send reqwest
             let response = request.send().await;
             if let Err(err) = response {
-                log(format!("{}\n{}", "Unable to reach host", err));
+                logging::log(format!("{}\n{}", "Unable to reach host", err));
                 continue;
             }
             let text = response.unwrap().text().await;
             if let Err(err) = text {
-                log(format!(
+                logging::log(format!(
                     "{}\n{}",
                     "Could not read body of http response", err
                 ));
@@ -96,7 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(first) = events.first() {
             let time_diff = first.start.to_utc() - Utc::now();
 
-            log(format!(
+            logging::log(format!(
                 "{} in {} mins. {}",
                 first.note,
                 time_diff.num_minutes(),
@@ -107,7 +113,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             ));
             if time_diff.num_minutes() < configuration.threshold.into() {
-                log(format!(
+                logging::log(format!(
                     "{}: {} mins",
                     "threshold reached", configuration.threshold
                 ));
@@ -117,7 +123,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .map(|v| &v[..]) // map to slice instead of a container reference
                     .unwrap_or_else(|| &[]); // otherwise return an empty slice.
                 for command in commands {
-                    log(format!("executing command: {}", command));
+                    logging::log(format!("executing command: {}", command));
                     let child = Command::new("sh")
                         .args(["-c", command])
                         .current_dir(".")
@@ -125,7 +131,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .wait()
                         .await;
                     if let Err(err) = child {
-                        log(format!("{}\n{}", "could not execute command", err));
+                        logging::log(format!("{}\n{}", "could not execute command", err));
                     }
                 }
             }

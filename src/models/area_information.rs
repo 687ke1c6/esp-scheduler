@@ -42,7 +42,7 @@ pub struct AreaInformation {
 
 impl AreaInformation {
     pub fn new(json: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let config: AreaInformation = from_reader(json.as_bytes())?;        
+        let config: AreaInformation = from_reader(json.as_bytes()).expect("dubious json");        
         Ok(config)
     }
 }

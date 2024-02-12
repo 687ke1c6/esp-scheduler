@@ -30,7 +30,7 @@ impl Config {
                 url: "".to_string(),
                 headers: None
             },
-            commands: Some(vec!["cat /etc/hostname".to_string()])
+            commands: Some(vec!["cat /etc/hostname".to_string(), "date".to_string()])
         }
     }
 }
