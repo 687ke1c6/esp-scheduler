@@ -66,7 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut events: Vec<&Event> = area_information
             .events
             .iter()
-            .filter(|e| e.start.to_utc() > Utc::now())
+            .filter(|&e| e.start.to_utc() > Utc::now())
             .collect();
 
         events.sort_by_key(|a| a.start);
