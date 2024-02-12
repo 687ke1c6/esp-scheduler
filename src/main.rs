@@ -40,6 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     logging::log(format!("starting esp-scheduler"));
+    logging::log(format!("using configuration file: {}", config_file_path));
     let mut file = File::open(config_file_path)
         .await
         .expect("Could not open config file");
