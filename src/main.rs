@@ -10,7 +10,6 @@ mod models;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-
     let mut file = File::open("esp-scheduler.yaml").expect("Could not open config file");
     let mut file_contents = String::new();
 
@@ -62,7 +61,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(first) = events.first() {
             let time_diff = first.start.to_utc() - Utc::now();
             println!("{} in {} mins", first.note, time_diff.num_minutes());
-            if time_diff.num_minutes() < configuration.threshold.into() {
+            if time_diff.num_minutes() < 0 {
+                println!(
+                    "WARNING: {} mins left\n\tnext: {}\n\tnow: {}",
+                    time_diff.num_minutes(),
+                    first.start.to_utc(),
+                    Utc::now()
+                );
+            } else if time_diff.num_minutes() < configuration.threshold.into() {
                 println!("{}: {} mins", "threshold reached", configuration.threshold);
                 let commands = configuration
                     .commands
@@ -70,6 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .map(|v| &v[..]) // map to slice instead of a container reference
                     .unwrap_or_else(|| &[]); // otherwise return an empty slice.
                 for command in commands {
+                    println!("executing command: {}", command);
                     let child = Command::new("sh")
                         .args(["-c", command])
                         .current_dir(".")
