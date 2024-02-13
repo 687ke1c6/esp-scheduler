@@ -9,5 +9,8 @@ pub struct Args {
     pub init: bool,
     /// Configuration file path
     #[arg(short, long)]
-    pub config_file: Option<String>
+    pub config_file: Option<String>,
+    /// Get source data from file
+    #[arg(short, long)]
+    pub source_from_file: Option<String>
 }

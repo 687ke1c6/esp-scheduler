@@ -63,31 +63,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         interval.tick().await;
         if count % fetch_mins == 0 {
-            logging::log(format!("{}, {}", "fetching", &configuration.fetch.url));
-            let mut request = http_client.get(&configuration.fetch.url);
-
-            // apply headers
-            if let Some(headers) = configuration.fetch.headers.as_ref() {
-                for (key, value) in headers {
-                    request = request.header(key, value);
+            if let Some(source_from_file) = args.source_from_file.as_ref() {
+                let source_from_file_path = Path::new(source_from_file);
+                if source_from_file_path.exists() {
+                    let mut source_file = File::open(source_from_file_path).await?;
+                    let mut source_json = String::new();
+                    source_file.read_to_string(& mut source_json).await?;
+                    cached_body = source_json;
+                } else {
+                    println!("{} does not exist", source_from_file);
+                    exit(1);
                 }
-            }
+            } else {
 
-            // send reqwest
-            let response = request.send().await;
-            if let Err(err) = response {
-                logging::log(format!("{}\n{}", "Unable to reach host", err));
-                continue;
+                logging::log(format!("{}, {}", "fetching", &configuration.fetch.url));
+                let mut request = http_client.get(&configuration.fetch.url);
+                
+                // apply headers
+                if let Some(headers) = configuration.fetch.headers.as_ref() {
+                    for (key, value) in headers {
+                        request = request.header(key, value);
+                    }
+                }
+                
+                // send reqwest
+                let response = request.send().await;
+                if let Err(err) = response {
+                    logging::log(format!("{}\n{}", "Unable to reach host", err));
+                    continue;
+                }
+                let text = response.unwrap().text().await;
+                if let Err(err) = text {
+                    logging::log(format!(
+                        "{}\n{}",
+                        "Could not read body of http response", err
+                    ));
+                    continue;
+                }
+                cached_body = text.unwrap();
             }
-            let text = response.unwrap().text().await;
-            if let Err(err) = text {
-                logging::log(format!(
-                    "{}\n{}",
-                    "Could not read body of http response", err
-                ));
-                continue;
-            }
-            cached_body = text.unwrap();
         }
 
         let area_information = AreaInformation::new(&cached_body)?;
@@ -100,7 +114,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         events.sort_by_key(|a| a.start);
 
-        if let Some(first) = events.first() {
+        if let Some(&first) = events.first() {
             let time_diff = first.start.to_utc() - Utc::now();
 
             logging::log(format!(
@@ -136,6 +150,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
+        } else {
+            println!("no upcoming events");
         }
 
         count += 1;
