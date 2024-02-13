@@ -66,13 +66,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Some(source_from_file) = args.source_from_file.as_ref() {
                 let source_from_file_path = Path::new(source_from_file);
                 if source_from_file_path.exists() {
-                    println!("using {} as event source", source_from_file);
+                    logging::log(format!("using {} as event source", source_from_file));
                     let mut source_file = File::open(source_from_file_path).await?;
                     let mut source_json = String::new();
                     source_file.read_to_string(& mut source_json).await?;
                     cached_body = source_json;
                 } else {
-                    println!("{} does not exist", source_from_file);
+                    logging::log(format!("{} does not exist", source_from_file));
                     exit(1);
                 }
             } else {
