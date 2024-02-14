@@ -24,6 +24,7 @@ static CONFIG_FILE_PATH: &'static str = "esp-scheduler.yaml";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+
     let args = Args::parse();
     let config_file_path = args.config_file.as_ref().map_or(CONFIG_FILE_PATH, |v| v);
 
@@ -93,7 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     logging::log(format!("{}\n{}", "Unable to reach host", err));
                     continue;
                 }
-                let text = response.unwrap().text().await;
+                let text = response?.text().await;
                 if let Err(err) = text {
                     logging::log(format!(
                         "{}\n{}",
