@@ -41,6 +41,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     logging::log(format!("starting esp-scheduler"));
+    
+    if let Some(delay) = args.delay {
+        logging::log(format!("Delaying: {} secs", delay));
+        tokio::time::sleep(Duration::from_secs(u64::from(delay))).await;
+    }
+
     logging::log(format!("using configuration file: {}", config_file_path));
     let mut file = File::open(config_file_path)
         .await
