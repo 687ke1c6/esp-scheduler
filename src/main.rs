@@ -3,6 +3,9 @@ use std::{path::Path, process::exit, time::Duration};
 use chrono::Utc;
 use clap::Parser;
 use models::{area_information::AreaInformation, args::Args};
+use signal_hook::consts::signal::*;
+use futures_util::stream::StreamExt;
+use signal_hook_tokio::Signals;
 use tokio::{
     fs::File,
     io::{AsyncReadExt, AsyncWriteExt},
@@ -22,8 +25,35 @@ mod logging {
 
 static CONFIG_FILE_PATH: &'static str = "esp-scheduler.yaml";
 
+async fn handle_signals(mut signals: Signals) {
+    while let Some(signal) = signals.next().await {
+        match signal {
+            SIGHUP => {
+                // Reload configuration
+                // Reopen the log file
+            }
+            SIGTERM | SIGINT | SIGQUIT => {
+                // Shutdown the system;
+                logging::log(format!("closing"));
+                exit(1);
+            },
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+    let signals = Signals::new(&[
+        SIGHUP,
+        SIGTERM,
+        SIGINT,
+        SIGQUIT,
+    ])?;
+
+    signals.handle();
+    tokio::spawn(handle_signals(signals));
 
     let args = Args::parse();
     let config_file_path = args.config_file.as_ref().map_or(CONFIG_FILE_PATH, |v| v);
