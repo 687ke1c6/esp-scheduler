@@ -2,17 +2,15 @@ use std::{path::Path, process::exit, time::Duration};
 
 use chrono::Utc;
 use clap::Parser;
-use models::{area_information::AreaInformation, args::Args};
-use signal_hook::consts::signal::*;
 use futures_util::stream::StreamExt;
+use models::{area_information::{AreaInformation, Event}, args::Args, config::Config};
+use signal_hook::consts::signal::*;
 use signal_hook_tokio::Signals;
 use tokio::{
     fs::File,
     io::{AsyncReadExt, AsyncWriteExt},
     process::Command,
 };
-
-use crate::models::{area_information::Event, config::Config};
 
 mod models;
 
@@ -36,7 +34,7 @@ async fn handle_signals(mut signals: Signals) {
                 // Shutdown the system;
                 logging::log(format!("closing"));
                 exit(1);
-            },
+            }
             _ => unreachable!(),
         }
     }
@@ -44,13 +42,7 @@ async fn handle_signals(mut signals: Signals) {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-
-    let signals = Signals::new(&[
-        SIGHUP,
-        SIGTERM,
-        SIGINT,
-        SIGQUIT,
-    ])?;
+    let signals = Signals::new(&[SIGHUP, SIGTERM, SIGINT, SIGQUIT])?;
 
     signals.handle();
     tokio::spawn(handle_signals(signals));
@@ -71,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     logging::log(format!("starting esp-scheduler"));
-    
+
     if let Some(delay) = args.delay {
         logging::log(format!("Delaying: {} secs", delay));
         tokio::time::sleep(Duration::from_secs(u64::from(delay))).await;
@@ -81,12 +73,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut file = File::open(config_file_path)
         .await
         .expect("Could not open config file");
-    let mut file_contents = String::new();
+    let mut config_file_contents = String::new();
 
-    file.read_to_string(&mut file_contents).await?;
+    file.read_to_string(&mut config_file_contents).await?;
 
     let configuration =
-        Config::from_str(&file_contents).expect("Could not deserialize configuration");
+        Config::from_str(&config_file_contents).expect("Could not deserialize configuration");
 
     let interval_secs = u64::from(configuration.interval_mins.as_ref().unwrap_or(&1) * 60);
     let mut interval = tokio::time::interval(Duration::from_secs(interval_secs));
@@ -100,45 +92,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         interval.tick().await;
         if count % fetch_mins == 0 {
-            if let Some(source_from_file) = args.source_from_file.as_ref() {
-                let source_from_file_path = Path::new(source_from_file);
-                if source_from_file_path.exists() {
-                    logging::log(format!("using {} as event source", source_from_file));
-                    let mut source_file = File::open(source_from_file_path).await?;
-                    let mut source_json = String::new();
-                    source_file.read_to_string(& mut source_json).await?;
-                    cached_body = source_json;
+            if let Some(fetch) = configuration.fetch.as_ref() {
+                if let Some(response) = fetch.response.as_ref() {
+                    cached_body = response.content.clone();
                 } else {
-                    logging::log(format!("{} does not exist", source_from_file));
-                    exit(1);
-                }
-            } else {
+                    logging::log(format!("fetch: {}", fetch.url));
+                    let request = fetch.to_reqwest(&http_client);
 
-                logging::log(format!("{}, {}", "fetching", &configuration.fetch.url));
-                let mut request = http_client.get(&configuration.fetch.url);
-                
-                // apply headers
-                if let Some(headers) = configuration.fetch.headers.as_ref() {
-                    for (key, value) in headers {
-                        request = request.header(key, value);
+                    // send reqwest
+                    let response = request.send().await;
+                    if let Err(err) = response {
+                        logging::log(format!("{}\n{}", "Unable to reach host", err));
+                        continue;
                     }
+                    let text = response?.text().await;
+                    if let Err(err) = text {
+                        logging::log(format!(
+                            "{}\n{}",
+                            "Could not read body of http response", err
+                        ));
+                        continue;
+                    }
+                    cached_body = text.unwrap();
                 }
-                
-                // send reqwest
-                let response = request.send().await;
-                if let Err(err) = response {
-                    logging::log(format!("{}\n{}", "Unable to reach host", err));
-                    continue;
-                }
-                let text = response?.text().await;
-                if let Err(err) = text {
-                    logging::log(format!(
-                        "{}\n{}",
-                        "Could not read body of http response", err
-                    ));
-                    continue;
-                }
-                cached_body = text.unwrap();
             }
         }
 

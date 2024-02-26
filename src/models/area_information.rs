@@ -21,7 +21,7 @@ impl Serialize for Event {
         let mut state = serializer.serialize_struct("Event", 3)?;
         state.serialize_field("note", &self.note)?;
         state.serialize_field("start", &self.start.to_rfc3339())?;
-        state.serialize_field("end", &self.end.to_rfc3339())?;
+        // state.serialize_field("end", &self.end.to_rfc3339())?;
         state.end()        
     }
 }
@@ -30,8 +30,8 @@ impl Serialize for Event {
 pub struct Event {
     #[serde(with = "date_serializer")]
     pub start: DateTime<FixedOffset>,
-    #[serde(with = "date_serializer")]
-    pub end: DateTime<FixedOffset>,
+    // #[serde(with = "date_serializer")]
+    // pub end: DateTime<FixedOffset>,
     pub note: String
 }
 

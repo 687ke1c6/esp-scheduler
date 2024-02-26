@@ -10,9 +10,6 @@ pub struct Args {
     /// Configuration file path
     #[arg(short, long)]
     pub config_file: Option<String>,
-    /// Get source data from file
-    #[arg(short, long)]
-    pub source_from_file: Option<String>,
     /// Start delay in seconds
     #[arg(short, long)]
     pub delay: Option<u32>
