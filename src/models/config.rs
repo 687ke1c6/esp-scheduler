@@ -32,6 +32,7 @@ impl Fetch {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Config {
+    pub version: Option<u8>,
     pub interval_mins: Option<u32>,
     pub fetch_occurrence: Option<u32>,
     pub threshold: u32,
@@ -40,11 +41,12 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn from_str(str: &str) -> Result<Config, serde_yaml::Error> {
-        serde_yaml::from_str::<Config>(str)
+    pub fn from_yaml_str(yaml_str: &str) -> Result<Config, serde_yaml::Error> {
+        serde_yaml::from_str::<Config>(yaml_str)
     }
     pub fn default() -> Self {
         Config {
+            version: Some(2),
             interval_mins: Some(5),
             fetch_occurrence: Some(12),
             threshold: 10,

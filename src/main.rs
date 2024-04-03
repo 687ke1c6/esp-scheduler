@@ -1,51 +1,24 @@
-use std::{path::Path, process::exit, time::Duration};
+mod models;
+mod logging;
+mod signals;
 
+use std::{iter, path::Path, process::exit, time::Duration};
 use chrono::Utc;
 use clap::Parser;
-use futures_util::stream::StreamExt;
 use models::{area_information::{AreaInformation, Event}, args::Args, config::Config};
-use signal_hook::consts::signal::*;
-use signal_hook_tokio::Signals;
+
 use tokio::{
     fs::File,
     io::{AsyncReadExt, AsyncWriteExt},
     process::Command,
 };
 
-mod models;
-
-mod logging {
-    use chrono::Utc;
-    pub fn log(log_line: String) {
-        println!("{} | {}", Utc::now().format("%d-%m-%Y %H:%M:%S"), log_line);
-    }
-}
-
 static CONFIG_FILE_PATH: &'static str = "esp-scheduler.yaml";
-
-async fn handle_signals(mut signals: Signals) {
-    while let Some(signal) = signals.next().await {
-        match signal {
-            SIGHUP => {
-                // Reload configuration
-                // Reopen the log file
-            }
-            SIGTERM | SIGINT | SIGQUIT => {
-                // Shutdown the system;
-                logging::log(format!("closing"));
-                exit(1);
-            }
-            _ => unreachable!(),
-        }
-    }
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let signals = Signals::new(&[SIGHUP, SIGTERM, SIGINT, SIGQUIT])?;
-
-    signals.handle();
-    tokio::spawn(handle_signals(signals));
+    
+    tokio::spawn(signals::handle_signals());
 
     let args = Args::parse();
     let config_file_path = args.config_file.as_ref().map_or(CONFIG_FILE_PATH, |v| v);
@@ -78,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     file.read_to_string(&mut config_file_contents).await?;
 
     let configuration =
-        Config::from_str(&config_file_contents).expect("Could not deserialize configuration");
+        Config::from_yaml_str(&config_file_contents).expect("Could not deserialize configuration");
 
     let interval_secs = u64::from(configuration.interval_mins.as_ref().unwrap_or(&1) * 60);
     let mut interval = tokio::time::interval(Duration::from_secs(interval_secs));
